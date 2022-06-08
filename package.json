@@ -1,25 +1,24 @@
 {
-  "name": "sinanjs",
-  "private": true,
-  "version": "0.0.1",
-  "license": "MIT",
-  "author": "Fei Xiang",
-  "description": "Extract Chinese numbers, date and time",
-  "main": "dist/sinan.umd.js",
-  "files": [
-    "dist",
-    "src"
-  ],
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-  },
-  "devDependencies": {
-    "@types/node": "^17.0.41",
-    "typescript": "^4.5.4",
-    "vite": "^2.9.9"
-  }
+    "name": "sinanjs",
+    "private": true,
+    "version": "0.0.1",
+    "license": "MIT",
+    "author": "Fei Xiang",
+    "description": "Extract Chinese numbers, date and time",
+    "main": "dist/sinan.umd.js",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "@types/node": "^17.0.41",
+        "typescript": "^4.5.4",
+        "vite": "^2.9.9"
+    }
 }

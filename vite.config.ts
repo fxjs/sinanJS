@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-
 // https://vitejs.dev/config/
 export default defineConfig({
     server: {
@@ -11,8 +10,8 @@ export default defineConfig({
     build: {
         lib: {
             entry: resolve(__dirname, 'src/main.ts'),
-            name: 'SiNanJS',
+            name: 'Sinan',
             fileName: (format) => `sinan.${format}.js`
         }
     }
-})
+});
