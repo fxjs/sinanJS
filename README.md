@@ -1,16 +1,73 @@
-# Vue 3 + TypeScript + Vite
+# sinanJS
+中文日期/时间/数字量提取工具
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+### 灵感来自：
 
-## Recommended IDE Setup
+[yiyujianghu/sinan](https://github.com/yiyujianghu/sinan) - `Python`版本
 
--   [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
+### 功能说明：
+1、汉字转换数字  
+可将文本中的数量词汉字转为相关数字，例如：
+> * "一千两百五十八点二"转换为"1258.2"
+> * "四分之三"转换为"0.75"
 
-## Type Support For `.vue` Imports in TS
+2、日期/时间解析  
+可解析"年-月-日 时:分:秒"，并支持推理运算，但闰年及月份天数仍未完善，
+例如(以下转换的基准日期为2000-08-08 12:30:30)：
+> * "2001.3.10"转换为"2001-03-10 12:30:30"
+> * "一九九五年十月十日下午三点二十一分"转换为"1995-10-10 15:21:30"
+> * "去年的今天下午的差一刻五点"转换为"1999-08-08 16:45:30"
 
-Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's Take Over mode by following these steps:
+3、手机号/身份证号提取  
+可解析正确的手机号/身份证号，例如：
+> * "我的手机号是15899232399"可提取其中正确的手机号码
 
-1. Run `Extensions: Show Built-in Extensions` from VS Code's command palette, look for `TypeScript and JavaScript Language Features`, then right click and select `Disable (Workspace)`. By default, Take Over mode will enable itself if the default TypeScript extension is disabled.
-2. Reload the VS Code window by running `Developer: Reload Window` from the command palette.
+4、数量词提取
+可提取文本信息中的数量信息，例如：
+> * "我花了一个半小时走了5.8公里的路程"可提取出"1.5小时"与"5.8公里"的信息
+> * "他花了4.8万元买了一辆电动车"可提取出"48000元"
 
-You can learn more about Take Over mode [here](https://github.com/johnsoncodehk/volar/discussions/471).
+数量词信息的提取与转换受单位词典的限制，目前可支持长度(m)、时间(s)、质量(kg)、货币(元)等常见信息提取，可通过扩充词典增加其功能。
+
+### 安装：
+npm
+> npm install sinanJS
+
+yarn
+> yarn add sinanJS
+
+### 使用说明：
+1、安装完毕后即可在使用：
+```js
+var si = new SinanJs("今天下午五点，我花了一个半小时走了五公里的路程。")
+var result = si.parse()
+```
+可看到result中的信息：
+```js
+{'datetime': ['2020-08-05 17:00:00'], 'time': ['5400.0s'], 'length': ['5000.0m']}
+```
+通过结构化数据解析即可提取其中信息。
+
+2、参数说明：
+* `si = new Sinan(content, source_DT)`  
+  其中content为待解析的文本内容，source_DT为标准时间；
+* `si.parse(display_status)`
+  其中display_status为时候显示解析过程，默认为true时显示，如果设置为false则不显示解析过程；
+
+3、返回信息：
+
+参数名 | 含义 | 示例
+:-    | :-   | :-
+datetime        | 日期时间信息   | '2020-08-05 17:00:00'
+length          | 长度信息      | (5000.0, 'm')
+weight          | 质量信息      | (2.0, 'kg')
+time            | 时间信息      | (5400.0, 's')
+temperature     | 温度信息      | (20.0 '℃')
+money           | 钱数信息      | (300.0, '元')
+people          | 人数信息      | (2.0, '人')
+phone_num       | 手机号码      | '13012345678'
+identification  | 身份证号      | '110108199703069999'
+
+
+### 特别说明
+该项目为`Python` [yiyujianghu/sinan](https://github.com/yiyujianghu/sinan) （原作者）版本的`TypeScript`版， 在此特别感谢原作者的辛苦付出。
