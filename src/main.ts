@@ -1,6 +1,7 @@
-import { NumberExtract } from './core/NumberExtract';
+import { CreateParser } from './core';
 
-export const numberExtract = new NumberExtract();
+export { CreateParser };
 
-// 调试
-console.log(numberExtract.detect('测试二三十个'));
+// debugger
+// const si = new CreateParser({ onlyPickMax: false });
+// console.log(si.parse('三个人 五个人'));
