@@ -1,11 +1,21 @@
 {
     "name": "sinanjs",
     "private": true,
-    "version": "0.0.1",
+    "version": "1.0.0",
     "license": "MIT",
-    "author": "Fei Xiang",
-    "description": "Extract Chinese numbers, date and time",
+    "author": "Fx",
+    "description": "Chinese number extraction tool",
     "main": "dist/sinan.umd.js",
+    "module": "./dist/sinan.es.js",
+    "unpkg": "./dist/sinan.umd.js",
+    "types": "./src/index.d.ts",
+    "keywords": [
+        "sinan",
+        "sinanjs",
+        "extract",
+        "extract number",
+        "Chinese number"
+    ],
     "files": [
         "dist",
         "src"

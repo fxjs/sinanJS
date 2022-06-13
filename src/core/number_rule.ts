@@ -1,40 +1,33 @@
+import { BASE_DICT } from './baseDict';
+import _cloneDeep from 'lodash-es/cloneDeep';
+import _merge from 'lodash-es/merge';
+
+interface IDict {
+    std: string;
+    [index: string]: string | number;
+}
+
 export interface INumberRuleOption {
     onlyPickMax?: boolean;
+    measureDict?: Record<string, IDict>;
 }
 
 export class Number_rule {
     // 是否只拾取最大值
     onlyPickMax = false;
+    // 常见的计量单位及同义词转换
+    measure_dict: Record<string, any>;
 
     constructor(option?: INumberRuleOption) {
         this.onlyPickMax = option?.onlyPickMax ?? this.onlyPickMax;
+        // 扩展字典
+        this.measure_dict = option?.measureDict
+            ? _merge(_cloneDeep(BASE_DICT), option?.measureDict || {})
+            : _cloneDeep(BASE_DICT);
     }
 
-    // 常见的计量单位及同义词转换
-    measure_dict: Record<string, any> = {
-        length: {
-            米: 1,
-            m: 1,
-            千米: 1000,
-            公里: 1000,
-            km: 1000,
-            里: 500,
-            厘米: 0.01,
-            cm: 0.01,
-            毫米: 0.001,
-            mm: 0.001,
-            std: 'm'
-        },
-        weight: { 千克: 1, kg: 1, 公斤: 1, 斤: 0.5, 克: 0.001, g: 0.001, std: 'kg' },
-        time: { 秒: 1, s: 1, 小时: 3600, h: 3600, 分钟: 60, min: 60, std: 's' },
-        temperature: { 摄氏度: 1, 度: 1, '℃': 1, std: '℃' },
-        money: { 元: 1, 块: 1, 元钱: 1, 块钱: 1, 角: 0.1, 分: 0.01, 分钱: 0.01, std: '元' },
-        people: { 人: 1, 位: 1, std: '人' },
-        area: { 平方米: 1, 平米: 1, 平方千米: 1000, 亩: 666, std: '平方米' }
-    };
-
     /**
-     * 输出std结果集
+     * 输出std结果
      * @param query
      */
     getStdResult(query: string) {
@@ -51,7 +44,7 @@ export class Number_rule {
                 }
             }
 
-            const unit_re = new RegExp(`(?<${key}>(\\d+))(${arr.join('|')})`, 'g');
+            const unit_re = new RegExp(`(?<${key}>(\\d+))多?(${arr.join('|')})`, 'g');
             const matchArr = query.matchAll(unit_re);
 
             for (const match of matchArr) {
@@ -61,6 +54,12 @@ export class Number_rule {
                 const unit_std_val = item[unit_std];
                 const unit_match_val: undefined | string = match.groups?.[key];
                 const unit_convert_val = item[unit];
+
+                // 字典没有配置std键
+                if (unit_std === undefined) {
+                    console.warn(`DICT.${key} missed 'std' prop`);
+                    continue;
+                }
 
                 if (unit_match_val !== undefined) {
                     const unit_val_convert_to_std = unit_std_val * Number(unit_match_val) * unit_convert_val;

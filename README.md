@@ -36,13 +36,13 @@ yarn
 1、安装完毕后即可在使用：
 
 ```js
-var si = new SinanJs.CreateParser({ onlyPickMax: false });
+var si = new Sinan.CreateParser({ onlyPickMax: false });
 var result = si.parse('有三人被困，面积三四十平米。');
 ```
 
 可看到 result 中的信息：
 
-```js
+```
 { people: [3], area: [40] }
 ```
 
@@ -51,15 +51,17 @@ var result = si.parse('有三人被困，面积三四十平米。');
 2、参数说明：
 
 -   `onlyPickMax` 是否只拾取最大值
+-   `measureDict` 扩展量词字典(格式{std: '', ...})
 
 3、返回信息：
 
-| 参数名      | 含义     | 示例            |
-| :---------- | :------- | :-------------- |
-| length      | 长度信息 | (5000.0, 'm')   |
-| weight      | 质量信息 | (2.0, 'kg')     |
-| time        | 时间信息 | (5400.0, 's')   |
-| temperature | 温度信息 | (20.0 '℃')      |
-| money       | 钱数信息 | (300.0, '元')   |
-| people      | 人数信息 | (2.0, '人')     |
-| area        | 面积信息 | (2.0, '平方米') |
+| 参数名      | 含义     | 示例(量, 默认单位) |
+| :---------- | :------- | :----------------- |
+| people      | 人数信息 | (2, '人')          |
+| area        | 面积信息 | (2, '平方米')      |
+| floor       | 楼层信息 | (2, '楼')          |
+| length      | 长度信息 | (2, 'm')           |
+| weight      | 质量信息 | (2, 'kg')          |
+| time        | 时间信息 | (60, 's')          |
+| temperature | 温度信息 | (20 '℃')           |
+| money       | 钱数信息 | (30, '元')         |

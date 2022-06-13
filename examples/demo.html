@@ -1,13 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Demo</title>
-    <script src="../dist/sinan.umd.js"></script>
-</head>
-<body>
-<script>
-    Sinan.main()
-</script>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Demo</title>
+        <script src="../dist/sinan.umd.js"></script>
+    </head>
+    <body>
+        <script>
+            var si = new Sinan.CreateParser({ onlyPickMax: false });
+            var result = si.parse('有三人被困，面积三四十平米。');
+
+            console.log(result);
+
+            // var si = new Sinan.CreateParser({
+            //     onlyPickMax: false,
+            //     measureDict: {
+            //         floor: {
+            //             楼: 1,
+            //             层: 1,
+            //             std: '楼'
+            //         }
+            //     }
+            // });
+            // var result = si.parse('有的在十楼办公 有的在二十五楼办公');
+            //
+            // console.log(result);
+        </script>
+    </body>
 </html>
