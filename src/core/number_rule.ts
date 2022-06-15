@@ -1,15 +1,11 @@
-import { BASE_DICT } from './baseDict';
-import _cloneDeep from 'lodash-es/cloneDeep';
-import _merge from 'lodash-es/merge';
-
-interface IDict {
+export interface IDict {
     std: string;
     [index: string]: string | number;
 }
 
 export interface INumberRuleOption {
     onlyPickMax?: boolean;
-    measureDict?: Record<string, IDict>;
+    measureDict: Record<string, IDict>;
 }
 
 export class Number_rule {
@@ -18,12 +14,10 @@ export class Number_rule {
     // 常见的计量单位及同义词转换
     measure_dict: Record<string, any>;
 
-    constructor(option?: INumberRuleOption) {
-        this.onlyPickMax = option?.onlyPickMax ?? this.onlyPickMax;
-        // 扩展字典
-        this.measure_dict = option?.measureDict
-            ? _merge(_cloneDeep(BASE_DICT), option?.measureDict || {})
-            : _cloneDeep(BASE_DICT);
+    constructor(option: INumberRuleOption) {
+        this.onlyPickMax = option.onlyPickMax ?? this.onlyPickMax;
+        // 字典
+        this.measure_dict = option.measureDict;
     }
 
     /**

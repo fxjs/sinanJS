@@ -1,7 +1,9 @@
 import _indexOf from 'lodash-es/indexOf';
 import _lastIndexOf from 'lodash-es/lastIndexOf';
 
-export interface INumberExtractOption {}
+export interface INumberExtractOption {
+    measureUnit: string[];
+}
 
 export class Number_extract {
     readonly digit: Record<string, number> = {
@@ -28,9 +30,16 @@ export class Number_extract {
         万: 10000,
         亿: 100000000
     };
-    readonly digit_unit_list = Object.keys(this.digit_unit);
 
-    constructor(option?: INumberExtractOption) {}
+    readonly digit_unit_list: string[];
+
+    readonly other_unit_list: string[] = [];
+
+    constructor(option: INumberExtractOption) {
+        for (const unit of option.measureUnit) this.other_unit_list.push(unit);
+
+        this.digit_unit_list = Object.keys(this.digit_unit);
+    }
 
     private decimal_detect(query: string): string {
         const rule_of_number = new RegExp('({0})+(?<deci_str>点({0})+)'.replaceAll('{0}', this.digit_list.join('|')));
@@ -193,7 +202,14 @@ export class Number_extract {
         let char_new = query;
 
         while (char_new.match(rule_of_number)) {
-            const detect_char = char_new.match(rule_of_number)![0];
+            let detect_char = char_new.match(rule_of_number)![0];
+
+            // if (_lastIndexOf(['个', '十', '百', '千', '万'], char_new) === -1) {
+            //     if (_indexOf(this.other_unit_list, query) !== -1) {
+            //         detect_char = detect_char + '个';
+            //     }
+            // }
+
             const ArabicNumerals = this.fraction_transfer(detect_char);
 
             if (!Number.isNaN(+ArabicNumerals)) {
