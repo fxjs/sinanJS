@@ -2,58 +2,59 @@
 
 中文数字量提取工具
 
-### 灵感来自：
+### 灵感来自
 
-[yiyujianghu/sinan](https://github.com/yiyujianghu/sinan) - `Python`版本
+[yiyujianghu/sinan](https://github.com/yiyujianghu/sinan) - `Python`版
 
-### 功能说明：
+### 功能说明
 
-1、汉字转换数字  
-可将文本中的数量词汉字转为相关数字，例如：
+#### 1、数量词提取
 
-> -   "一千两百五十八点二"转换为"1258.2"
-> -   "四分之三"转换为"0.75"
-
-2、数量词提取
 可提取文本信息中的数量信息，例如：
 
-> -   "有三四个人在场 燃烧面积大概有五十平米"可提取出"4 人"与"50 平米"的信息
+-   "在二楼，有三人被困，面积有三四十平米" 可提取出 "2 楼，3 人，40 平米"的信息
 
-数量词信息的提取与转换受单位词典的限制，目前可支持长度(m)、时间(s)、质量(kg)、货币(元)、人数(人)、面积(平方米)等常见信息提取，可通过扩充词典增加其功能。
+目前内置支持长度(m)、时间(s)、质量(kg)、货币(元)、人数(人)、楼层（楼/层）、面积(平方米)等常见信息提取，可通过扩充词典增加匹配项。
 
-### 安装：
+#### 2、汉字转换数字
+
+可将文本中的数量词汉字转为相关数字，例如：
+
+-   "一千两百五十八点二"转换为"1258.2"
+-   "四分之三"转换为"0.75"
+
+### 安装
 
 npm
 
-> npm install sinanJS
+> npm install sinanjs
 
 yarn
 
-> yarn add sinanJS
+> yarn add sinanjs
 
-### 使用说明：
+### 使用说明
 
-1、安装完毕后即可在使用：
+#### 1、引用
 
 ```js
-var si = new Sinan.CreateParser({ onlyPickMax: false });
-var result = si.parse('有三人被困，面积三四十平米。');
+// ES6
+import { CreateParser } from 'sinanjs';
+const si = new CreateParser({ onlyPickMax: false });
+
+// UMD
+// var si = new Sinan.CreateParser({ onlyPickMax: false });
+
+const result = si.pick('在二楼 有三人被困 面积有三四十平米');
+// 提取信息 { area: [40], floor: [2], people: [3] }
 ```
 
-可看到 result 中的信息：
-
-```
-{ people: [3], area: [40] }
-```
-
-通过结构化数据解析即可提取其中信息。
-
-2、参数说明：
+#### 2、参数说明
 
 -   `onlyPickMax` 是否只拾取最大值
 -   `measureDict` 扩展量词字典(格式{std: '', ...})
 
-3、返回信息：
+#### 3、返回信息
 
 | 参数名      | 含义     | 示例(量, 默认单位) |
 | :---------- | :------- | :----------------- |

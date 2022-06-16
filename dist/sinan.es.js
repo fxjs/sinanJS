@@ -189,7 +189,11 @@ class Number_extract {
       \u4E07: 1e4,
       \u4EBF: 1e8
     });
-    __publicField(this, "digit_unit_list", Object.keys(this.digit_unit));
+    __publicField(this, "digit_unit_list");
+    __publicField(this, "other_unit_list", []);
+    for (const unit of option.measureUnit)
+      this.other_unit_list.push(unit);
+    this.digit_unit_list = Object.keys(this.digit_unit);
   }
   decimal_detect(query) {
     const rule_of_number = new RegExp("({0})+(?<deci_str>\u70B9({0})+)".replaceAll("{0}", this.digit_list.join("|")));
@@ -288,6 +292,10 @@ class Number_extract {
   fraction_transfer(detect_char) {
     if (detect_char === "\u4E2A")
       return "";
+    const re = /([亿万千百十个])/g;
+    if (!re.test(detect_char)) {
+      detect_char = detect_char.slice(-1);
+    }
     let [denominator_char, numerator_char] = detect_char.split("\u5206\u4E4B");
     let fraction_num;
     if (numerator_char !== void 0) {
@@ -320,7 +328,7 @@ class Number_extract {
     const rule_of_number = new RegExp("({})+".replaceAll("{}", num_and_unit_list.join("|")));
     let char_new = query;
     while (char_new.match(rule_of_number)) {
-      const detect_char = char_new.match(rule_of_number)[0];
+      let detect_char = char_new.match(rule_of_number)[0];
       const ArabicNumerals = this.fraction_transfer(detect_char);
       if (!Number.isNaN(+ArabicNumerals)) {
         char_new = char_new.replace(detect_char, ArabicNumerals);
@@ -343,28 +351,55 @@ class Number_extract {
     }
   }
 }
-const BASE_DICT = {
-  length: {
-    \u7C73: 1,
-    m: 1,
-    \u5343\u7C73: 1e3,
-    \u516C\u91CC: 1e3,
-    km: 1e3,
-    \u91CC: 500,
-    \u5398\u7C73: 0.01,
-    cm: 0.01,
-    \u6BEB\u7C73: 1e-3,
-    mm: 1e-3,
-    std: "m"
-  },
-  weight: { \u5343\u514B: 1, kg: 1, \u516C\u65A4: 1, \u65A4: 0.5, \u514B: 1e-3, g: 1e-3, std: "kg" },
-  time: { \u79D2: 1, s: 1, \u5C0F\u65F6: 3600, h: 3600, \u5206\u949F: 60, min: 60, std: "s" },
-  temperature: { \u6444\u6C0F\u5EA6: 1, \u5EA6: 1, "\u2103": 1, std: "\u2103" },
-  money: { \u5143: 1, \u5757: 1, \u5143\u94B1: 1, \u5757\u94B1: 1, \u89D2: 0.1, \u5206: 0.01, \u5206\u94B1: 0.01, std: "\u5143" },
-  people: { \u4EBA: 1, \u4F4D: 1, std: "\u4EBA" },
-  area: { \u5E73\u65B9\u7C73: 1, \u5E73\u7C73: 1, \u5E73\u65B9\u5343\u7C73: 1e3, \u4EA9: 666, std: "\u5E73\u65B9\u7C73" },
-  floor: { \u697C: 1, \u5C42: 1, std: "\u697C" }
-};
+class Number_rule {
+  constructor(option) {
+    __publicField(this, "onlyPickMax", false);
+    __publicField(this, "measure_dict");
+    var _a;
+    this.onlyPickMax = (_a = option.onlyPickMax) != null ? _a : this.onlyPickMax;
+    this.measure_dict = option.measureDict;
+  }
+  getStdResult(query) {
+    var _a;
+    let obj = {};
+    const keys2 = Object.keys(this.measure_dict);
+    for (const key of keys2) {
+      const item = this.measure_dict[key];
+      const arr = [];
+      for (const unit of Object.keys(item)) {
+        if (unit !== "std") {
+          arr.push(unit);
+        }
+      }
+      const unit_re = new RegExp(`(?<${key}>(\\d+))\u591A?(${arr.join("|")})`, "g");
+      const matchArr = query.matchAll(unit_re);
+      for (const match of matchArr) {
+        const unit_std = this.measure_dict[key]["std"];
+        const unit = match[match.length - 1];
+        const unit_std_val = item[unit_std];
+        const unit_match_val = (_a = match.groups) == null ? void 0 : _a[key];
+        const unit_convert_val = item[unit];
+        if (unit_std === void 0) {
+          console.warn(`DICT.${key} missed 'std' prop`);
+          continue;
+        }
+        if (unit_match_val !== void 0) {
+          const unit_val_convert_to_std = unit_std_val * Number(unit_match_val) * unit_convert_val;
+          if (!obj[key]) {
+            obj[key] = [unit_val_convert_to_std];
+          } else {
+            obj[key].push(unit_val_convert_to_std);
+            obj[key] = [...new Set(obj[key])];
+          }
+          if (this.onlyPickMax) {
+            obj[key] = [Math.max(...obj[key])];
+          }
+        }
+      }
+    }
+    return obj;
+  }
+}
 function listCacheClear() {
   this.__data__ = [];
   this.size = 0;
@@ -615,15 +650,6 @@ Stack.prototype["delete"] = stackDelete;
 Stack.prototype.get = stackGet;
 Stack.prototype.has = stackHas;
 Stack.prototype.set = stackSet;
-function arrayEach(array, iteratee) {
-  var index = -1, length = array == null ? 0 : array.length;
-  while (++index < length) {
-    if (iteratee(array[index], index, array) === false) {
-      break;
-    }
-  }
-  return array;
-}
 var defineProperty = function() {
   try {
     var func = getNative(Object, "defineProperty");
@@ -645,11 +671,185 @@ function baseAssignValue(object, key, value) {
     object[key] = value;
   }
 }
+function assignMergeValue(object, key, value) {
+  if (value !== void 0 && !eq(object[key], value) || value === void 0 && !(key in object)) {
+    baseAssignValue(object, key, value);
+  }
+}
+function createBaseFor(fromRight) {
+  return function(object, iteratee, keysFunc) {
+    var index = -1, iterable = Object(object), props = keysFunc(object), length = props.length;
+    while (length--) {
+      var key = props[fromRight ? length : ++index];
+      if (iteratee(iterable[key], key, iterable) === false) {
+        break;
+      }
+    }
+    return object;
+  };
+}
+var baseFor = createBaseFor();
+var baseFor$1 = baseFor;
+var freeExports$2 = typeof exports == "object" && exports && !exports.nodeType && exports;
+var freeModule$2 = freeExports$2 && typeof module == "object" && module && !module.nodeType && module;
+var moduleExports$2 = freeModule$2 && freeModule$2.exports === freeExports$2;
+var Buffer$1 = moduleExports$2 ? root$1.Buffer : void 0, allocUnsafe = Buffer$1 ? Buffer$1.allocUnsafe : void 0;
+function cloneBuffer(buffer, isDeep) {
+  if (isDeep) {
+    return buffer.slice();
+  }
+  var length = buffer.length, result = allocUnsafe ? allocUnsafe(length) : new buffer.constructor(length);
+  buffer.copy(result);
+  return result;
+}
+var Uint8Array2 = root$1.Uint8Array;
+var Uint8Array$1 = Uint8Array2;
+function cloneArrayBuffer(arrayBuffer) {
+  var result = new arrayBuffer.constructor(arrayBuffer.byteLength);
+  new Uint8Array$1(result).set(new Uint8Array$1(arrayBuffer));
+  return result;
+}
+function cloneTypedArray(typedArray, isDeep) {
+  var buffer = isDeep ? cloneArrayBuffer(typedArray.buffer) : typedArray.buffer;
+  return new typedArray.constructor(buffer, typedArray.byteOffset, typedArray.length);
+}
+function copyArray(source, array) {
+  var index = -1, length = source.length;
+  array || (array = Array(length));
+  while (++index < length) {
+    array[index] = source[index];
+  }
+  return array;
+}
+var objectCreate = Object.create;
+var baseCreate = function() {
+  function object() {
+  }
+  return function(proto) {
+    if (!isObject(proto)) {
+      return {};
+    }
+    if (objectCreate) {
+      return objectCreate(proto);
+    }
+    object.prototype = proto;
+    var result = new object();
+    object.prototype = void 0;
+    return result;
+  };
+}();
+var baseCreate$1 = baseCreate;
+function overArg(func, transform) {
+  return function(arg) {
+    return func(transform(arg));
+  };
+}
+var getPrototype = overArg(Object.getPrototypeOf, Object);
+var getPrototype$1 = getPrototype;
 var objectProto$8 = Object.prototype;
-var hasOwnProperty$6 = objectProto$8.hasOwnProperty;
+function isPrototype(value) {
+  var Ctor = value && value.constructor, proto = typeof Ctor == "function" && Ctor.prototype || objectProto$8;
+  return value === proto;
+}
+function initCloneObject(object) {
+  return typeof object.constructor == "function" && !isPrototype(object) ? baseCreate$1(getPrototype$1(object)) : {};
+}
+var argsTag$2 = "[object Arguments]";
+function baseIsArguments(value) {
+  return isObjectLike(value) && baseGetTag(value) == argsTag$2;
+}
+var objectProto$7 = Object.prototype;
+var hasOwnProperty$6 = objectProto$7.hasOwnProperty;
+var propertyIsEnumerable$1 = objectProto$7.propertyIsEnumerable;
+var isArguments = baseIsArguments(function() {
+  return arguments;
+}()) ? baseIsArguments : function(value) {
+  return isObjectLike(value) && hasOwnProperty$6.call(value, "callee") && !propertyIsEnumerable$1.call(value, "callee");
+};
+var isArguments$1 = isArguments;
+var isArray = Array.isArray;
+var isArray$1 = isArray;
+var MAX_SAFE_INTEGER$1 = 9007199254740991;
+function isLength(value) {
+  return typeof value == "number" && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER$1;
+}
+function isArrayLike(value) {
+  return value != null && isLength(value.length) && !isFunction(value);
+}
+function isArrayLikeObject(value) {
+  return isObjectLike(value) && isArrayLike(value);
+}
+function stubFalse() {
+  return false;
+}
+var freeExports$1 = typeof exports == "object" && exports && !exports.nodeType && exports;
+var freeModule$1 = freeExports$1 && typeof module == "object" && module && !module.nodeType && module;
+var moduleExports$1 = freeModule$1 && freeModule$1.exports === freeExports$1;
+var Buffer2 = moduleExports$1 ? root$1.Buffer : void 0;
+var nativeIsBuffer = Buffer2 ? Buffer2.isBuffer : void 0;
+var isBuffer = nativeIsBuffer || stubFalse;
+var isBuffer$1 = isBuffer;
+var objectTag$3 = "[object Object]";
+var funcProto = Function.prototype, objectProto$6 = Object.prototype;
+var funcToString = funcProto.toString;
+var hasOwnProperty$5 = objectProto$6.hasOwnProperty;
+var objectCtorString = funcToString.call(Object);
+function isPlainObject(value) {
+  if (!isObjectLike(value) || baseGetTag(value) != objectTag$3) {
+    return false;
+  }
+  var proto = getPrototype$1(value);
+  if (proto === null) {
+    return true;
+  }
+  var Ctor = hasOwnProperty$5.call(proto, "constructor") && proto.constructor;
+  return typeof Ctor == "function" && Ctor instanceof Ctor && funcToString.call(Ctor) == objectCtorString;
+}
+var argsTag$1 = "[object Arguments]", arrayTag$1 = "[object Array]", boolTag$2 = "[object Boolean]", dateTag$2 = "[object Date]", errorTag$1 = "[object Error]", funcTag$1 = "[object Function]", mapTag$4 = "[object Map]", numberTag$2 = "[object Number]", objectTag$2 = "[object Object]", regexpTag$2 = "[object RegExp]", setTag$4 = "[object Set]", stringTag$2 = "[object String]", weakMapTag$2 = "[object WeakMap]";
+var arrayBufferTag$2 = "[object ArrayBuffer]", dataViewTag$3 = "[object DataView]", float32Tag$2 = "[object Float32Array]", float64Tag$2 = "[object Float64Array]", int8Tag$2 = "[object Int8Array]", int16Tag$2 = "[object Int16Array]", int32Tag$2 = "[object Int32Array]", uint8Tag$2 = "[object Uint8Array]", uint8ClampedTag$2 = "[object Uint8ClampedArray]", uint16Tag$2 = "[object Uint16Array]", uint32Tag$2 = "[object Uint32Array]";
+var typedArrayTags = {};
+typedArrayTags[float32Tag$2] = typedArrayTags[float64Tag$2] = typedArrayTags[int8Tag$2] = typedArrayTags[int16Tag$2] = typedArrayTags[int32Tag$2] = typedArrayTags[uint8Tag$2] = typedArrayTags[uint8ClampedTag$2] = typedArrayTags[uint16Tag$2] = typedArrayTags[uint32Tag$2] = true;
+typedArrayTags[argsTag$1] = typedArrayTags[arrayTag$1] = typedArrayTags[arrayBufferTag$2] = typedArrayTags[boolTag$2] = typedArrayTags[dataViewTag$3] = typedArrayTags[dateTag$2] = typedArrayTags[errorTag$1] = typedArrayTags[funcTag$1] = typedArrayTags[mapTag$4] = typedArrayTags[numberTag$2] = typedArrayTags[objectTag$2] = typedArrayTags[regexpTag$2] = typedArrayTags[setTag$4] = typedArrayTags[stringTag$2] = typedArrayTags[weakMapTag$2] = false;
+function baseIsTypedArray(value) {
+  return isObjectLike(value) && isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
+}
+function baseUnary(func) {
+  return function(value) {
+    return func(value);
+  };
+}
+var freeExports = typeof exports == "object" && exports && !exports.nodeType && exports;
+var freeModule = freeExports && typeof module == "object" && module && !module.nodeType && module;
+var moduleExports = freeModule && freeModule.exports === freeExports;
+var freeProcess = moduleExports && freeGlobal$1.process;
+var nodeUtil = function() {
+  try {
+    var types = freeModule && freeModule.require && freeModule.require("util").types;
+    if (types) {
+      return types;
+    }
+    return freeProcess && freeProcess.binding && freeProcess.binding("util");
+  } catch (e) {
+  }
+}();
+var nodeUtil$1 = nodeUtil;
+var nodeIsTypedArray = nodeUtil$1 && nodeUtil$1.isTypedArray;
+var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
+var isTypedArray$1 = isTypedArray;
+function safeGet(object, key) {
+  if (key === "constructor" && typeof object[key] === "function") {
+    return;
+  }
+  if (key == "__proto__") {
+    return;
+  }
+  return object[key];
+}
+var objectProto$5 = Object.prototype;
+var hasOwnProperty$4 = objectProto$5.hasOwnProperty;
 function assignValue(object, key, value) {
   var objValue = object[key];
-  if (!(hasOwnProperty$6.call(object, key) && eq(objValue, value)) || value === void 0 && !(key in object)) {
+  if (!(hasOwnProperty$4.call(object, key) && eq(objValue, value)) || value === void 0 && !(key in object)) {
     baseAssignValue(object, key, value);
   }
 }
@@ -678,118 +878,23 @@ function baseTimes(n, iteratee) {
   }
   return result;
 }
-var argsTag$2 = "[object Arguments]";
-function baseIsArguments(value) {
-  return isObjectLike(value) && baseGetTag(value) == argsTag$2;
-}
-var objectProto$7 = Object.prototype;
-var hasOwnProperty$5 = objectProto$7.hasOwnProperty;
-var propertyIsEnumerable$1 = objectProto$7.propertyIsEnumerable;
-var isArguments = baseIsArguments(function() {
-  return arguments;
-}()) ? baseIsArguments : function(value) {
-  return isObjectLike(value) && hasOwnProperty$5.call(value, "callee") && !propertyIsEnumerable$1.call(value, "callee");
-};
-var isArguments$1 = isArguments;
-var isArray = Array.isArray;
-var isArray$1 = isArray;
-function stubFalse() {
-  return false;
-}
-var freeExports$2 = typeof exports == "object" && exports && !exports.nodeType && exports;
-var freeModule$2 = freeExports$2 && typeof module == "object" && module && !module.nodeType && module;
-var moduleExports$2 = freeModule$2 && freeModule$2.exports === freeExports$2;
-var Buffer$1 = moduleExports$2 ? root$1.Buffer : void 0;
-var nativeIsBuffer = Buffer$1 ? Buffer$1.isBuffer : void 0;
-var isBuffer = nativeIsBuffer || stubFalse;
-var isBuffer$1 = isBuffer;
-var MAX_SAFE_INTEGER$1 = 9007199254740991;
+var MAX_SAFE_INTEGER = 9007199254740991;
 var reIsUint = /^(?:0|[1-9]\d*)$/;
 function isIndex(value, length) {
   var type = typeof value;
-  length = length == null ? MAX_SAFE_INTEGER$1 : length;
+  length = length == null ? MAX_SAFE_INTEGER : length;
   return !!length && (type == "number" || type != "symbol" && reIsUint.test(value)) && (value > -1 && value % 1 == 0 && value < length);
 }
-var MAX_SAFE_INTEGER = 9007199254740991;
-function isLength(value) {
-  return typeof value == "number" && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-var argsTag$1 = "[object Arguments]", arrayTag$1 = "[object Array]", boolTag$2 = "[object Boolean]", dateTag$2 = "[object Date]", errorTag$1 = "[object Error]", funcTag$1 = "[object Function]", mapTag$4 = "[object Map]", numberTag$2 = "[object Number]", objectTag$3 = "[object Object]", regexpTag$2 = "[object RegExp]", setTag$4 = "[object Set]", stringTag$2 = "[object String]", weakMapTag$2 = "[object WeakMap]";
-var arrayBufferTag$2 = "[object ArrayBuffer]", dataViewTag$3 = "[object DataView]", float32Tag$2 = "[object Float32Array]", float64Tag$2 = "[object Float64Array]", int8Tag$2 = "[object Int8Array]", int16Tag$2 = "[object Int16Array]", int32Tag$2 = "[object Int32Array]", uint8Tag$2 = "[object Uint8Array]", uint8ClampedTag$2 = "[object Uint8ClampedArray]", uint16Tag$2 = "[object Uint16Array]", uint32Tag$2 = "[object Uint32Array]";
-var typedArrayTags = {};
-typedArrayTags[float32Tag$2] = typedArrayTags[float64Tag$2] = typedArrayTags[int8Tag$2] = typedArrayTags[int16Tag$2] = typedArrayTags[int32Tag$2] = typedArrayTags[uint8Tag$2] = typedArrayTags[uint8ClampedTag$2] = typedArrayTags[uint16Tag$2] = typedArrayTags[uint32Tag$2] = true;
-typedArrayTags[argsTag$1] = typedArrayTags[arrayTag$1] = typedArrayTags[arrayBufferTag$2] = typedArrayTags[boolTag$2] = typedArrayTags[dataViewTag$3] = typedArrayTags[dateTag$2] = typedArrayTags[errorTag$1] = typedArrayTags[funcTag$1] = typedArrayTags[mapTag$4] = typedArrayTags[numberTag$2] = typedArrayTags[objectTag$3] = typedArrayTags[regexpTag$2] = typedArrayTags[setTag$4] = typedArrayTags[stringTag$2] = typedArrayTags[weakMapTag$2] = false;
-function baseIsTypedArray(value) {
-  return isObjectLike(value) && isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
-}
-function baseUnary(func) {
-  return function(value) {
-    return func(value);
-  };
-}
-var freeExports$1 = typeof exports == "object" && exports && !exports.nodeType && exports;
-var freeModule$1 = freeExports$1 && typeof module == "object" && module && !module.nodeType && module;
-var moduleExports$1 = freeModule$1 && freeModule$1.exports === freeExports$1;
-var freeProcess = moduleExports$1 && freeGlobal$1.process;
-var nodeUtil = function() {
-  try {
-    var types = freeModule$1 && freeModule$1.require && freeModule$1.require("util").types;
-    if (types) {
-      return types;
-    }
-    return freeProcess && freeProcess.binding && freeProcess.binding("util");
-  } catch (e) {
-  }
-}();
-var nodeUtil$1 = nodeUtil;
-var nodeIsTypedArray = nodeUtil$1 && nodeUtil$1.isTypedArray;
-var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
-var isTypedArray$1 = isTypedArray;
-var objectProto$6 = Object.prototype;
-var hasOwnProperty$4 = objectProto$6.hasOwnProperty;
+var objectProto$4 = Object.prototype;
+var hasOwnProperty$3 = objectProto$4.hasOwnProperty;
 function arrayLikeKeys(value, inherited) {
   var isArr = isArray$1(value), isArg = !isArr && isArguments$1(value), isBuff = !isArr && !isArg && isBuffer$1(value), isType = !isArr && !isArg && !isBuff && isTypedArray$1(value), skipIndexes = isArr || isArg || isBuff || isType, result = skipIndexes ? baseTimes(value.length, String) : [], length = result.length;
   for (var key in value) {
-    if ((inherited || hasOwnProperty$4.call(value, key)) && !(skipIndexes && (key == "length" || isBuff && (key == "offset" || key == "parent") || isType && (key == "buffer" || key == "byteLength" || key == "byteOffset") || isIndex(key, length)))) {
+    if ((inherited || hasOwnProperty$3.call(value, key)) && !(skipIndexes && (key == "length" || isBuff && (key == "offset" || key == "parent") || isType && (key == "buffer" || key == "byteLength" || key == "byteOffset") || isIndex(key, length)))) {
       result.push(key);
     }
   }
   return result;
-}
-var objectProto$5 = Object.prototype;
-function isPrototype(value) {
-  var Ctor = value && value.constructor, proto = typeof Ctor == "function" && Ctor.prototype || objectProto$5;
-  return value === proto;
-}
-function overArg(func, transform) {
-  return function(arg) {
-    return func(transform(arg));
-  };
-}
-var nativeKeys = overArg(Object.keys, Object);
-var nativeKeys$1 = nativeKeys;
-var objectProto$4 = Object.prototype;
-var hasOwnProperty$3 = objectProto$4.hasOwnProperty;
-function baseKeys(object) {
-  if (!isPrototype(object)) {
-    return nativeKeys$1(object);
-  }
-  var result = [];
-  for (var key in Object(object)) {
-    if (hasOwnProperty$3.call(object, key) && key != "constructor") {
-      result.push(key);
-    }
-  }
-  return result;
-}
-function isArrayLike(value) {
-  return value != null && isLength(value.length) && !isFunction(value);
-}
-function keys(object) {
-  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
-}
-function baseAssign(object, source) {
-  return object && copyObject(source, keys(source), object);
 }
 function nativeKeysIn(object) {
   var result = [];
@@ -816,345 +921,6 @@ function baseKeysIn(object) {
 }
 function keysIn(object) {
   return isArrayLike(object) ? arrayLikeKeys(object, true) : baseKeysIn(object);
-}
-function baseAssignIn(object, source) {
-  return object && copyObject(source, keysIn(source), object);
-}
-var freeExports = typeof exports == "object" && exports && !exports.nodeType && exports;
-var freeModule = freeExports && typeof module == "object" && module && !module.nodeType && module;
-var moduleExports = freeModule && freeModule.exports === freeExports;
-var Buffer2 = moduleExports ? root$1.Buffer : void 0, allocUnsafe = Buffer2 ? Buffer2.allocUnsafe : void 0;
-function cloneBuffer(buffer, isDeep) {
-  if (isDeep) {
-    return buffer.slice();
-  }
-  var length = buffer.length, result = allocUnsafe ? allocUnsafe(length) : new buffer.constructor(length);
-  buffer.copy(result);
-  return result;
-}
-function copyArray(source, array) {
-  var index = -1, length = source.length;
-  array || (array = Array(length));
-  while (++index < length) {
-    array[index] = source[index];
-  }
-  return array;
-}
-function arrayFilter(array, predicate) {
-  var index = -1, length = array == null ? 0 : array.length, resIndex = 0, result = [];
-  while (++index < length) {
-    var value = array[index];
-    if (predicate(value, index, array)) {
-      result[resIndex++] = value;
-    }
-  }
-  return result;
-}
-function stubArray() {
-  return [];
-}
-var objectProto$2 = Object.prototype;
-var propertyIsEnumerable = objectProto$2.propertyIsEnumerable;
-var nativeGetSymbols$1 = Object.getOwnPropertySymbols;
-var getSymbols = !nativeGetSymbols$1 ? stubArray : function(object) {
-  if (object == null) {
-    return [];
-  }
-  object = Object(object);
-  return arrayFilter(nativeGetSymbols$1(object), function(symbol) {
-    return propertyIsEnumerable.call(object, symbol);
-  });
-};
-var getSymbols$1 = getSymbols;
-function copySymbols(source, object) {
-  return copyObject(source, getSymbols$1(source), object);
-}
-function arrayPush(array, values) {
-  var index = -1, length = values.length, offset = array.length;
-  while (++index < length) {
-    array[offset + index] = values[index];
-  }
-  return array;
-}
-var getPrototype = overArg(Object.getPrototypeOf, Object);
-var getPrototype$1 = getPrototype;
-var nativeGetSymbols = Object.getOwnPropertySymbols;
-var getSymbolsIn = !nativeGetSymbols ? stubArray : function(object) {
-  var result = [];
-  while (object) {
-    arrayPush(result, getSymbols$1(object));
-    object = getPrototype$1(object);
-  }
-  return result;
-};
-var getSymbolsIn$1 = getSymbolsIn;
-function copySymbolsIn(source, object) {
-  return copyObject(source, getSymbolsIn$1(source), object);
-}
-function baseGetAllKeys(object, keysFunc, symbolsFunc) {
-  var result = keysFunc(object);
-  return isArray$1(object) ? result : arrayPush(result, symbolsFunc(object));
-}
-function getAllKeys(object) {
-  return baseGetAllKeys(object, keys, getSymbols$1);
-}
-function getAllKeysIn(object) {
-  return baseGetAllKeys(object, keysIn, getSymbolsIn$1);
-}
-var DataView = getNative(root$1, "DataView");
-var DataView$1 = DataView;
-var Promise$1 = getNative(root$1, "Promise");
-var Promise$2 = Promise$1;
-var Set$1 = getNative(root$1, "Set");
-var Set$2 = Set$1;
-var WeakMap = getNative(root$1, "WeakMap");
-var WeakMap$1 = WeakMap;
-var mapTag$3 = "[object Map]", objectTag$2 = "[object Object]", promiseTag = "[object Promise]", setTag$3 = "[object Set]", weakMapTag$1 = "[object WeakMap]";
-var dataViewTag$2 = "[object DataView]";
-var dataViewCtorString = toSource(DataView$1), mapCtorString = toSource(Map$1), promiseCtorString = toSource(Promise$2), setCtorString = toSource(Set$2), weakMapCtorString = toSource(WeakMap$1);
-var getTag = baseGetTag;
-if (DataView$1 && getTag(new DataView$1(new ArrayBuffer(1))) != dataViewTag$2 || Map$1 && getTag(new Map$1()) != mapTag$3 || Promise$2 && getTag(Promise$2.resolve()) != promiseTag || Set$2 && getTag(new Set$2()) != setTag$3 || WeakMap$1 && getTag(new WeakMap$1()) != weakMapTag$1) {
-  getTag = function(value) {
-    var result = baseGetTag(value), Ctor = result == objectTag$2 ? value.constructor : void 0, ctorString = Ctor ? toSource(Ctor) : "";
-    if (ctorString) {
-      switch (ctorString) {
-        case dataViewCtorString:
-          return dataViewTag$2;
-        case mapCtorString:
-          return mapTag$3;
-        case promiseCtorString:
-          return promiseTag;
-        case setCtorString:
-          return setTag$3;
-        case weakMapCtorString:
-          return weakMapTag$1;
-      }
-    }
-    return result;
-  };
-}
-var getTag$1 = getTag;
-var objectProto$1 = Object.prototype;
-var hasOwnProperty$1 = objectProto$1.hasOwnProperty;
-function initCloneArray(array) {
-  var length = array.length, result = new array.constructor(length);
-  if (length && typeof array[0] == "string" && hasOwnProperty$1.call(array, "index")) {
-    result.index = array.index;
-    result.input = array.input;
-  }
-  return result;
-}
-var Uint8Array2 = root$1.Uint8Array;
-var Uint8Array$1 = Uint8Array2;
-function cloneArrayBuffer(arrayBuffer) {
-  var result = new arrayBuffer.constructor(arrayBuffer.byteLength);
-  new Uint8Array$1(result).set(new Uint8Array$1(arrayBuffer));
-  return result;
-}
-function cloneDataView(dataView, isDeep) {
-  var buffer = isDeep ? cloneArrayBuffer(dataView.buffer) : dataView.buffer;
-  return new dataView.constructor(buffer, dataView.byteOffset, dataView.byteLength);
-}
-var reFlags = /\w*$/;
-function cloneRegExp(regexp) {
-  var result = new regexp.constructor(regexp.source, reFlags.exec(regexp));
-  result.lastIndex = regexp.lastIndex;
-  return result;
-}
-var symbolProto = Symbol$2 ? Symbol$2.prototype : void 0, symbolValueOf = symbolProto ? symbolProto.valueOf : void 0;
-function cloneSymbol(symbol) {
-  return symbolValueOf ? Object(symbolValueOf.call(symbol)) : {};
-}
-function cloneTypedArray(typedArray, isDeep) {
-  var buffer = isDeep ? cloneArrayBuffer(typedArray.buffer) : typedArray.buffer;
-  return new typedArray.constructor(buffer, typedArray.byteOffset, typedArray.length);
-}
-var boolTag$1 = "[object Boolean]", dateTag$1 = "[object Date]", mapTag$2 = "[object Map]", numberTag$1 = "[object Number]", regexpTag$1 = "[object RegExp]", setTag$2 = "[object Set]", stringTag$1 = "[object String]", symbolTag$1 = "[object Symbol]";
-var arrayBufferTag$1 = "[object ArrayBuffer]", dataViewTag$1 = "[object DataView]", float32Tag$1 = "[object Float32Array]", float64Tag$1 = "[object Float64Array]", int8Tag$1 = "[object Int8Array]", int16Tag$1 = "[object Int16Array]", int32Tag$1 = "[object Int32Array]", uint8Tag$1 = "[object Uint8Array]", uint8ClampedTag$1 = "[object Uint8ClampedArray]", uint16Tag$1 = "[object Uint16Array]", uint32Tag$1 = "[object Uint32Array]";
-function initCloneByTag(object, tag, isDeep) {
-  var Ctor = object.constructor;
-  switch (tag) {
-    case arrayBufferTag$1:
-      return cloneArrayBuffer(object);
-    case boolTag$1:
-    case dateTag$1:
-      return new Ctor(+object);
-    case dataViewTag$1:
-      return cloneDataView(object, isDeep);
-    case float32Tag$1:
-    case float64Tag$1:
-    case int8Tag$1:
-    case int16Tag$1:
-    case int32Tag$1:
-    case uint8Tag$1:
-    case uint8ClampedTag$1:
-    case uint16Tag$1:
-    case uint32Tag$1:
-      return cloneTypedArray(object, isDeep);
-    case mapTag$2:
-      return new Ctor();
-    case numberTag$1:
-    case stringTag$1:
-      return new Ctor(object);
-    case regexpTag$1:
-      return cloneRegExp(object);
-    case setTag$2:
-      return new Ctor();
-    case symbolTag$1:
-      return cloneSymbol(object);
-  }
-}
-var objectCreate = Object.create;
-var baseCreate = function() {
-  function object() {
-  }
-  return function(proto) {
-    if (!isObject(proto)) {
-      return {};
-    }
-    if (objectCreate) {
-      return objectCreate(proto);
-    }
-    object.prototype = proto;
-    var result = new object();
-    object.prototype = void 0;
-    return result;
-  };
-}();
-var baseCreate$1 = baseCreate;
-function initCloneObject(object) {
-  return typeof object.constructor == "function" && !isPrototype(object) ? baseCreate$1(getPrototype$1(object)) : {};
-}
-var mapTag$1 = "[object Map]";
-function baseIsMap(value) {
-  return isObjectLike(value) && getTag$1(value) == mapTag$1;
-}
-var nodeIsMap = nodeUtil$1 && nodeUtil$1.isMap;
-var isMap = nodeIsMap ? baseUnary(nodeIsMap) : baseIsMap;
-var isMap$1 = isMap;
-var setTag$1 = "[object Set]";
-function baseIsSet(value) {
-  return isObjectLike(value) && getTag$1(value) == setTag$1;
-}
-var nodeIsSet = nodeUtil$1 && nodeUtil$1.isSet;
-var isSet = nodeIsSet ? baseUnary(nodeIsSet) : baseIsSet;
-var isSet$1 = isSet;
-var CLONE_DEEP_FLAG$1 = 1, CLONE_FLAT_FLAG = 2, CLONE_SYMBOLS_FLAG$1 = 4;
-var argsTag = "[object Arguments]", arrayTag = "[object Array]", boolTag = "[object Boolean]", dateTag = "[object Date]", errorTag = "[object Error]", funcTag = "[object Function]", genTag = "[object GeneratorFunction]", mapTag = "[object Map]", numberTag = "[object Number]", objectTag$1 = "[object Object]", regexpTag = "[object RegExp]", setTag = "[object Set]", stringTag = "[object String]", symbolTag = "[object Symbol]", weakMapTag = "[object WeakMap]";
-var arrayBufferTag = "[object ArrayBuffer]", dataViewTag = "[object DataView]", float32Tag = "[object Float32Array]", float64Tag = "[object Float64Array]", int8Tag = "[object Int8Array]", int16Tag = "[object Int16Array]", int32Tag = "[object Int32Array]", uint8Tag = "[object Uint8Array]", uint8ClampedTag = "[object Uint8ClampedArray]", uint16Tag = "[object Uint16Array]", uint32Tag = "[object Uint32Array]";
-var cloneableTags = {};
-cloneableTags[argsTag] = cloneableTags[arrayTag] = cloneableTags[arrayBufferTag] = cloneableTags[dataViewTag] = cloneableTags[boolTag] = cloneableTags[dateTag] = cloneableTags[float32Tag] = cloneableTags[float64Tag] = cloneableTags[int8Tag] = cloneableTags[int16Tag] = cloneableTags[int32Tag] = cloneableTags[mapTag] = cloneableTags[numberTag] = cloneableTags[objectTag$1] = cloneableTags[regexpTag] = cloneableTags[setTag] = cloneableTags[stringTag] = cloneableTags[symbolTag] = cloneableTags[uint8Tag] = cloneableTags[uint8ClampedTag] = cloneableTags[uint16Tag] = cloneableTags[uint32Tag] = true;
-cloneableTags[errorTag] = cloneableTags[funcTag] = cloneableTags[weakMapTag] = false;
-function baseClone(value, bitmask, customizer, key, object, stack) {
-  var result, isDeep = bitmask & CLONE_DEEP_FLAG$1, isFlat = bitmask & CLONE_FLAT_FLAG, isFull = bitmask & CLONE_SYMBOLS_FLAG$1;
-  if (customizer) {
-    result = object ? customizer(value, key, object, stack) : customizer(value);
-  }
-  if (result !== void 0) {
-    return result;
-  }
-  if (!isObject(value)) {
-    return value;
-  }
-  var isArr = isArray$1(value);
-  if (isArr) {
-    result = initCloneArray(value);
-    if (!isDeep) {
-      return copyArray(value, result);
-    }
-  } else {
-    var tag = getTag$1(value), isFunc = tag == funcTag || tag == genTag;
-    if (isBuffer$1(value)) {
-      return cloneBuffer(value, isDeep);
-    }
-    if (tag == objectTag$1 || tag == argsTag || isFunc && !object) {
-      result = isFlat || isFunc ? {} : initCloneObject(value);
-      if (!isDeep) {
-        return isFlat ? copySymbolsIn(value, baseAssignIn(result, value)) : copySymbols(value, baseAssign(result, value));
-      }
-    } else {
-      if (!cloneableTags[tag]) {
-        return object ? value : {};
-      }
-      result = initCloneByTag(value, tag, isDeep);
-    }
-  }
-  stack || (stack = new Stack());
-  var stacked = stack.get(value);
-  if (stacked) {
-    return stacked;
-  }
-  stack.set(value, result);
-  if (isSet$1(value)) {
-    value.forEach(function(subValue) {
-      result.add(baseClone(subValue, bitmask, customizer, subValue, value, stack));
-    });
-  } else if (isMap$1(value)) {
-    value.forEach(function(subValue, key2) {
-      result.set(key2, baseClone(subValue, bitmask, customizer, key2, value, stack));
-    });
-  }
-  var keysFunc = isFull ? isFlat ? getAllKeysIn : getAllKeys : isFlat ? keysIn : keys;
-  var props = isArr ? void 0 : keysFunc(value);
-  arrayEach(props || value, function(subValue, key2) {
-    if (props) {
-      key2 = subValue;
-      subValue = value[key2];
-    }
-    assignValue(result, key2, baseClone(subValue, bitmask, customizer, key2, value, stack));
-  });
-  return result;
-}
-var CLONE_DEEP_FLAG = 1, CLONE_SYMBOLS_FLAG = 4;
-function cloneDeep(value) {
-  return baseClone(value, CLONE_DEEP_FLAG | CLONE_SYMBOLS_FLAG);
-}
-function assignMergeValue(object, key, value) {
-  if (value !== void 0 && !eq(object[key], value) || value === void 0 && !(key in object)) {
-    baseAssignValue(object, key, value);
-  }
-}
-function createBaseFor(fromRight) {
-  return function(object, iteratee, keysFunc) {
-    var index = -1, iterable = Object(object), props = keysFunc(object), length = props.length;
-    while (length--) {
-      var key = props[fromRight ? length : ++index];
-      if (iteratee(iterable[key], key, iterable) === false) {
-        break;
-      }
-    }
-    return object;
-  };
-}
-var baseFor = createBaseFor();
-var baseFor$1 = baseFor;
-function isArrayLikeObject(value) {
-  return isObjectLike(value) && isArrayLike(value);
-}
-var objectTag = "[object Object]";
-var funcProto = Function.prototype, objectProto = Object.prototype;
-var funcToString = funcProto.toString;
-var hasOwnProperty = objectProto.hasOwnProperty;
-var objectCtorString = funcToString.call(Object);
-function isPlainObject(value) {
-  if (!isObjectLike(value) || baseGetTag(value) != objectTag) {
-    return false;
-  }
-  var proto = getPrototype$1(value);
-  if (proto === null) {
-    return true;
-  }
-  var Ctor = hasOwnProperty.call(proto, "constructor") && proto.constructor;
-  return typeof Ctor == "function" && Ctor instanceof Ctor && funcToString.call(Ctor) == objectCtorString;
-}
-function safeGet(object, key) {
-  if (key === "constructor" && typeof object[key] === "function") {
-    return;
-  }
-  if (key == "__proto__") {
-    return;
-  }
-  return object[key];
 }
 function toPlainObject(value) {
   return copyObject(value, keysIn(value));
@@ -1320,66 +1086,319 @@ var merge = createAssigner(function(object, source, srcIndex) {
   baseMerge(object, source, srcIndex);
 });
 var _merge = merge;
-class Number_rule {
-  constructor(option) {
-    __publicField(this, "onlyPickMax", false);
-    __publicField(this, "measure_dict");
-    var _a;
-    this.onlyPickMax = (_a = option == null ? void 0 : option.onlyPickMax) != null ? _a : this.onlyPickMax;
-    this.measure_dict = (option == null ? void 0 : option.measureDict) ? _merge(cloneDeep(BASE_DICT), (option == null ? void 0 : option.measureDict) || {}) : cloneDeep(BASE_DICT);
+function arrayEach(array, iteratee) {
+  var index = -1, length = array == null ? 0 : array.length;
+  while (++index < length) {
+    if (iteratee(array[index], index, array) === false) {
+      break;
+    }
   }
-  getStdResult(query) {
-    var _a;
-    let obj = {};
-    const keys2 = Object.keys(this.measure_dict);
-    for (const key of keys2) {
-      const item = this.measure_dict[key];
-      const arr = [];
-      for (const unit of Object.keys(item)) {
-        if (unit !== "std") {
-          arr.push(unit);
-        }
-      }
-      const unit_re = new RegExp(`(?<${key}>(\\d+))\u591A?(${arr.join("|")})`, "g");
-      const matchArr = query.matchAll(unit_re);
-      for (const match of matchArr) {
-        const unit_std = this.measure_dict[key]["std"];
-        const unit = match[match.length - 1];
-        const unit_std_val = item[unit_std];
-        const unit_match_val = (_a = match.groups) == null ? void 0 : _a[key];
-        const unit_convert_val = item[unit];
-        if (unit_std === void 0) {
-          console.warn(`DICT.${key} missed 'std' prop`);
-          continue;
-        }
-        if (unit_match_val !== void 0) {
-          const unit_val_convert_to_std = unit_std_val * Number(unit_match_val) * unit_convert_val;
-          if (!obj[key]) {
-            obj[key] = [unit_val_convert_to_std];
-          } else {
-            obj[key].push(unit_val_convert_to_std);
-            obj[key] = [...new Set(obj[key])];
-          }
-          if (this.onlyPickMax) {
-            obj[key] = [Math.max(...obj[key])];
-          }
-        }
+  return array;
+}
+var nativeKeys = overArg(Object.keys, Object);
+var nativeKeys$1 = nativeKeys;
+var objectProto$2 = Object.prototype;
+var hasOwnProperty$1 = objectProto$2.hasOwnProperty;
+function baseKeys(object) {
+  if (!isPrototype(object)) {
+    return nativeKeys$1(object);
+  }
+  var result = [];
+  for (var key in Object(object)) {
+    if (hasOwnProperty$1.call(object, key) && key != "constructor") {
+      result.push(key);
+    }
+  }
+  return result;
+}
+function keys(object) {
+  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
+}
+function baseAssign(object, source) {
+  return object && copyObject(source, keys(source), object);
+}
+function baseAssignIn(object, source) {
+  return object && copyObject(source, keysIn(source), object);
+}
+function arrayFilter(array, predicate) {
+  var index = -1, length = array == null ? 0 : array.length, resIndex = 0, result = [];
+  while (++index < length) {
+    var value = array[index];
+    if (predicate(value, index, array)) {
+      result[resIndex++] = value;
+    }
+  }
+  return result;
+}
+function stubArray() {
+  return [];
+}
+var objectProto$1 = Object.prototype;
+var propertyIsEnumerable = objectProto$1.propertyIsEnumerable;
+var nativeGetSymbols$1 = Object.getOwnPropertySymbols;
+var getSymbols = !nativeGetSymbols$1 ? stubArray : function(object) {
+  if (object == null) {
+    return [];
+  }
+  object = Object(object);
+  return arrayFilter(nativeGetSymbols$1(object), function(symbol) {
+    return propertyIsEnumerable.call(object, symbol);
+  });
+};
+var getSymbols$1 = getSymbols;
+function copySymbols(source, object) {
+  return copyObject(source, getSymbols$1(source), object);
+}
+function arrayPush(array, values) {
+  var index = -1, length = values.length, offset = array.length;
+  while (++index < length) {
+    array[offset + index] = values[index];
+  }
+  return array;
+}
+var nativeGetSymbols = Object.getOwnPropertySymbols;
+var getSymbolsIn = !nativeGetSymbols ? stubArray : function(object) {
+  var result = [];
+  while (object) {
+    arrayPush(result, getSymbols$1(object));
+    object = getPrototype$1(object);
+  }
+  return result;
+};
+var getSymbolsIn$1 = getSymbolsIn;
+function copySymbolsIn(source, object) {
+  return copyObject(source, getSymbolsIn$1(source), object);
+}
+function baseGetAllKeys(object, keysFunc, symbolsFunc) {
+  var result = keysFunc(object);
+  return isArray$1(object) ? result : arrayPush(result, symbolsFunc(object));
+}
+function getAllKeys(object) {
+  return baseGetAllKeys(object, keys, getSymbols$1);
+}
+function getAllKeysIn(object) {
+  return baseGetAllKeys(object, keysIn, getSymbolsIn$1);
+}
+var DataView = getNative(root$1, "DataView");
+var DataView$1 = DataView;
+var Promise$1 = getNative(root$1, "Promise");
+var Promise$2 = Promise$1;
+var Set$1 = getNative(root$1, "Set");
+var Set$2 = Set$1;
+var WeakMap = getNative(root$1, "WeakMap");
+var WeakMap$1 = WeakMap;
+var mapTag$3 = "[object Map]", objectTag$1 = "[object Object]", promiseTag = "[object Promise]", setTag$3 = "[object Set]", weakMapTag$1 = "[object WeakMap]";
+var dataViewTag$2 = "[object DataView]";
+var dataViewCtorString = toSource(DataView$1), mapCtorString = toSource(Map$1), promiseCtorString = toSource(Promise$2), setCtorString = toSource(Set$2), weakMapCtorString = toSource(WeakMap$1);
+var getTag = baseGetTag;
+if (DataView$1 && getTag(new DataView$1(new ArrayBuffer(1))) != dataViewTag$2 || Map$1 && getTag(new Map$1()) != mapTag$3 || Promise$2 && getTag(Promise$2.resolve()) != promiseTag || Set$2 && getTag(new Set$2()) != setTag$3 || WeakMap$1 && getTag(new WeakMap$1()) != weakMapTag$1) {
+  getTag = function(value) {
+    var result = baseGetTag(value), Ctor = result == objectTag$1 ? value.constructor : void 0, ctorString = Ctor ? toSource(Ctor) : "";
+    if (ctorString) {
+      switch (ctorString) {
+        case dataViewCtorString:
+          return dataViewTag$2;
+        case mapCtorString:
+          return mapTag$3;
+        case promiseCtorString:
+          return promiseTag;
+        case setCtorString:
+          return setTag$3;
+        case weakMapCtorString:
+          return weakMapTag$1;
       }
     }
-    return obj;
+    return result;
+  };
+}
+var getTag$1 = getTag;
+var objectProto = Object.prototype;
+var hasOwnProperty = objectProto.hasOwnProperty;
+function initCloneArray(array) {
+  var length = array.length, result = new array.constructor(length);
+  if (length && typeof array[0] == "string" && hasOwnProperty.call(array, "index")) {
+    result.index = array.index;
+    result.input = array.input;
+  }
+  return result;
+}
+function cloneDataView(dataView, isDeep) {
+  var buffer = isDeep ? cloneArrayBuffer(dataView.buffer) : dataView.buffer;
+  return new dataView.constructor(buffer, dataView.byteOffset, dataView.byteLength);
+}
+var reFlags = /\w*$/;
+function cloneRegExp(regexp) {
+  var result = new regexp.constructor(regexp.source, reFlags.exec(regexp));
+  result.lastIndex = regexp.lastIndex;
+  return result;
+}
+var symbolProto = Symbol$2 ? Symbol$2.prototype : void 0, symbolValueOf = symbolProto ? symbolProto.valueOf : void 0;
+function cloneSymbol(symbol) {
+  return symbolValueOf ? Object(symbolValueOf.call(symbol)) : {};
+}
+var boolTag$1 = "[object Boolean]", dateTag$1 = "[object Date]", mapTag$2 = "[object Map]", numberTag$1 = "[object Number]", regexpTag$1 = "[object RegExp]", setTag$2 = "[object Set]", stringTag$1 = "[object String]", symbolTag$1 = "[object Symbol]";
+var arrayBufferTag$1 = "[object ArrayBuffer]", dataViewTag$1 = "[object DataView]", float32Tag$1 = "[object Float32Array]", float64Tag$1 = "[object Float64Array]", int8Tag$1 = "[object Int8Array]", int16Tag$1 = "[object Int16Array]", int32Tag$1 = "[object Int32Array]", uint8Tag$1 = "[object Uint8Array]", uint8ClampedTag$1 = "[object Uint8ClampedArray]", uint16Tag$1 = "[object Uint16Array]", uint32Tag$1 = "[object Uint32Array]";
+function initCloneByTag(object, tag, isDeep) {
+  var Ctor = object.constructor;
+  switch (tag) {
+    case arrayBufferTag$1:
+      return cloneArrayBuffer(object);
+    case boolTag$1:
+    case dateTag$1:
+      return new Ctor(+object);
+    case dataViewTag$1:
+      return cloneDataView(object, isDeep);
+    case float32Tag$1:
+    case float64Tag$1:
+    case int8Tag$1:
+    case int16Tag$1:
+    case int32Tag$1:
+    case uint8Tag$1:
+    case uint8ClampedTag$1:
+    case uint16Tag$1:
+    case uint32Tag$1:
+      return cloneTypedArray(object, isDeep);
+    case mapTag$2:
+      return new Ctor();
+    case numberTag$1:
+    case stringTag$1:
+      return new Ctor(object);
+    case regexpTag$1:
+      return cloneRegExp(object);
+    case setTag$2:
+      return new Ctor();
+    case symbolTag$1:
+      return cloneSymbol(object);
   }
 }
+var mapTag$1 = "[object Map]";
+function baseIsMap(value) {
+  return isObjectLike(value) && getTag$1(value) == mapTag$1;
+}
+var nodeIsMap = nodeUtil$1 && nodeUtil$1.isMap;
+var isMap = nodeIsMap ? baseUnary(nodeIsMap) : baseIsMap;
+var isMap$1 = isMap;
+var setTag$1 = "[object Set]";
+function baseIsSet(value) {
+  return isObjectLike(value) && getTag$1(value) == setTag$1;
+}
+var nodeIsSet = nodeUtil$1 && nodeUtil$1.isSet;
+var isSet = nodeIsSet ? baseUnary(nodeIsSet) : baseIsSet;
+var isSet$1 = isSet;
+var CLONE_DEEP_FLAG$1 = 1, CLONE_FLAT_FLAG = 2, CLONE_SYMBOLS_FLAG$1 = 4;
+var argsTag = "[object Arguments]", arrayTag = "[object Array]", boolTag = "[object Boolean]", dateTag = "[object Date]", errorTag = "[object Error]", funcTag = "[object Function]", genTag = "[object GeneratorFunction]", mapTag = "[object Map]", numberTag = "[object Number]", objectTag = "[object Object]", regexpTag = "[object RegExp]", setTag = "[object Set]", stringTag = "[object String]", symbolTag = "[object Symbol]", weakMapTag = "[object WeakMap]";
+var arrayBufferTag = "[object ArrayBuffer]", dataViewTag = "[object DataView]", float32Tag = "[object Float32Array]", float64Tag = "[object Float64Array]", int8Tag = "[object Int8Array]", int16Tag = "[object Int16Array]", int32Tag = "[object Int32Array]", uint8Tag = "[object Uint8Array]", uint8ClampedTag = "[object Uint8ClampedArray]", uint16Tag = "[object Uint16Array]", uint32Tag = "[object Uint32Array]";
+var cloneableTags = {};
+cloneableTags[argsTag] = cloneableTags[arrayTag] = cloneableTags[arrayBufferTag] = cloneableTags[dataViewTag] = cloneableTags[boolTag] = cloneableTags[dateTag] = cloneableTags[float32Tag] = cloneableTags[float64Tag] = cloneableTags[int8Tag] = cloneableTags[int16Tag] = cloneableTags[int32Tag] = cloneableTags[mapTag] = cloneableTags[numberTag] = cloneableTags[objectTag] = cloneableTags[regexpTag] = cloneableTags[setTag] = cloneableTags[stringTag] = cloneableTags[symbolTag] = cloneableTags[uint8Tag] = cloneableTags[uint8ClampedTag] = cloneableTags[uint16Tag] = cloneableTags[uint32Tag] = true;
+cloneableTags[errorTag] = cloneableTags[funcTag] = cloneableTags[weakMapTag] = false;
+function baseClone(value, bitmask, customizer, key, object, stack) {
+  var result, isDeep = bitmask & CLONE_DEEP_FLAG$1, isFlat = bitmask & CLONE_FLAT_FLAG, isFull = bitmask & CLONE_SYMBOLS_FLAG$1;
+  if (customizer) {
+    result = object ? customizer(value, key, object, stack) : customizer(value);
+  }
+  if (result !== void 0) {
+    return result;
+  }
+  if (!isObject(value)) {
+    return value;
+  }
+  var isArr = isArray$1(value);
+  if (isArr) {
+    result = initCloneArray(value);
+    if (!isDeep) {
+      return copyArray(value, result);
+    }
+  } else {
+    var tag = getTag$1(value), isFunc = tag == funcTag || tag == genTag;
+    if (isBuffer$1(value)) {
+      return cloneBuffer(value, isDeep);
+    }
+    if (tag == objectTag || tag == argsTag || isFunc && !object) {
+      result = isFlat || isFunc ? {} : initCloneObject(value);
+      if (!isDeep) {
+        return isFlat ? copySymbolsIn(value, baseAssignIn(result, value)) : copySymbols(value, baseAssign(result, value));
+      }
+    } else {
+      if (!cloneableTags[tag]) {
+        return object ? value : {};
+      }
+      result = initCloneByTag(value, tag, isDeep);
+    }
+  }
+  stack || (stack = new Stack());
+  var stacked = stack.get(value);
+  if (stacked) {
+    return stacked;
+  }
+  stack.set(value, result);
+  if (isSet$1(value)) {
+    value.forEach(function(subValue) {
+      result.add(baseClone(subValue, bitmask, customizer, subValue, value, stack));
+    });
+  } else if (isMap$1(value)) {
+    value.forEach(function(subValue, key2) {
+      result.set(key2, baseClone(subValue, bitmask, customizer, key2, value, stack));
+    });
+  }
+  var keysFunc = isFull ? isFlat ? getAllKeysIn : getAllKeys : isFlat ? keysIn : keys;
+  var props = isArr ? void 0 : keysFunc(value);
+  arrayEach(props || value, function(subValue, key2) {
+    if (props) {
+      key2 = subValue;
+      subValue = value[key2];
+    }
+    assignValue(result, key2, baseClone(subValue, bitmask, customizer, key2, value, stack));
+  });
+  return result;
+}
+var CLONE_DEEP_FLAG = 1, CLONE_SYMBOLS_FLAG = 4;
+function cloneDeep(value) {
+  return baseClone(value, CLONE_DEEP_FLAG | CLONE_SYMBOLS_FLAG);
+}
+const BASE_DICT = {
+  length: {
+    \u7C73: 1,
+    m: 1,
+    \u5343\u7C73: 1e3,
+    \u516C\u91CC: 1e3,
+    km: 1e3,
+    \u91CC: 500,
+    \u5398\u7C73: 0.01,
+    cm: 0.01,
+    \u6BEB\u7C73: 1e-3,
+    mm: 1e-3,
+    std: "m"
+  },
+  weight: { \u5343\u514B: 1, kg: 1, \u516C\u65A4: 1, \u65A4: 0.5, \u514B: 1e-3, g: 1e-3, std: "kg" },
+  time: { \u79D2: 1, s: 1, \u5C0F\u65F6: 3600, h: 3600, \u5206\u949F: 60, min: 60, std: "s" },
+  temperature: { \u6444\u6C0F\u5EA6: 1, \u5EA6: 1, "\u2103": 1, std: "\u2103" },
+  money: { \u5143: 1, \u5757: 1, \u5143\u94B1: 1, \u5757\u94B1: 1, \u89D2: 0.1, \u5206: 0.01, \u5206\u94B1: 0.01, std: "\u5143" },
+  people: { \u4EBA: 1, \u4F4D: 1, std: "\u4EBA" },
+  area: { \u5E73\u65B9\u7C73: 1, \u5E73\u7C73: 1, \u5E73\u65B9\u5343\u7C73: 1e3, \u4EA9: 666, std: "\u5E73\u65B9\u7C73" },
+  floor: { \u697C: 1, \u5C42: 1, std: "\u697C" }
+};
 class CreateParser {
   constructor(option) {
     __publicField(this, "numberExtract");
     __publicField(this, "numberRule");
-    this.numberExtract = new Number_extract(option);
-    this.numberRule = new Number_rule(option);
+    const dict = this.getMeasureDict(option);
+    const unit = this.getMeasureUnit(dict);
+    const _opt = _merge(option, { measureDict: dict, measureUnit: unit });
+    this.numberExtract = new Number_extract(_opt);
+    this.numberRule = new Number_rule(_opt);
   }
   parse(query) {
-    const char_new = this.numberExtract.detect(query);
-    const data = this.numberRule.getStdResult(char_new);
-    return data;
+    return this.numberExtract.detect(query);
+  }
+  pick(query) {
+    const char_new = this.parse(query);
+    return this.numberRule.getStdResult(char_new);
+  }
+  getMeasureDict(option) {
+    return (option == null ? void 0 : option.measureDict) ? _merge(cloneDeep(BASE_DICT), (option == null ? void 0 : option.measureDict) || {}) : cloneDeep(BASE_DICT);
+  }
+  getMeasureUnit(dict) {
+    return ["\u5E73\u65B9\u7C73", "\u697C"];
   }
 }
 export { CreateParser };

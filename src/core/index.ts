@@ -1,7 +1,7 @@
 import { Number_extract } from './number_extract';
 import { Number_rule } from './number_rule';
-import type { INumberRuleOption, IDict } from './number_rule';
 import type { INumberExtractOption } from './number_extract';
+import type { IDict, INumberRuleOption } from './number_rule';
 import _merge from 'lodash-es/merge';
 import _cloneDeep from 'lodash-es/cloneDeep';
 import { BASE_DICT } from './baseDict';
@@ -24,10 +24,14 @@ export class CreateParser {
 
     // 解析
     parse(query: string) {
-        const char_new = this.numberExtract.detect(query);
-        const data = this.numberRule.getStdResult(char_new);
+        return this.numberExtract.detect(query);
+    }
 
-        return data;
+    // 提取
+    pick(query: string) {
+        const char_new = this.parse(query);
+
+        return this.numberRule.getStdResult(char_new);
     }
 
     // 合并字典
