@@ -160,6 +160,12 @@ export class Number_extract {
     private fraction_transfer(detect_char: string): string {
         if (detect_char === '个') return '';
 
+        const re = /([亿万千百十个])/g;
+
+        if (!re.test(detect_char)) {
+            detect_char = detect_char.slice(-1); // 不带单位的取最后一位
+        }
+
         let [denominator_char, numerator_char] = detect_char.split('分之');
         let fraction_num;
 
@@ -203,12 +209,6 @@ export class Number_extract {
 
         while (char_new.match(rule_of_number)) {
             let detect_char = char_new.match(rule_of_number)![0];
-
-            // if (_lastIndexOf(['个', '十', '百', '千', '万'], char_new) === -1) {
-            //     if (_indexOf(this.other_unit_list, query) !== -1) {
-            //         detect_char = detect_char + '个';
-            //     }
-            // }
 
             const ArabicNumerals = this.fraction_transfer(detect_char);
 
