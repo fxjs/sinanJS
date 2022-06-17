@@ -5,7 +5,8 @@ type IOption = INumberRuleOption & INumberExtractOption;
 
 declare class CreateParser {
     constructor(option?: IOption);
-    parse(query: string): Record<string, number[]>;
+    parse(query: string): string;
+    pick(query: string): Record<string, number[]>;
 }
 
 export { IOption as IOptionParser, CreateParser };
