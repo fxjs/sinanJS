@@ -4,7 +4,7 @@ import type { INumberExtractOption } from './core/number_extract';
 type IOption = INumberRuleOption & INumberExtractOption;
 
 declare class CreateParser {
-    constructor(option?: IOption);
+    constructor(option?: Partial<IOption>);
     parse(query: string): string;
     pick(query: string): Record<string, number[]>;
 }
